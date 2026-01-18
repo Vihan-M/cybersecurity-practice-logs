@@ -1,6 +1,6 @@
 # 🛡️ Daily CTF Logs
 
-This repository contains my **daily logs, write-ups, and learnings** from various Capture The Flag (CTF) platforms and cybersecurity challenges. It is a record of my continuous progress in ethical hacking, penetration testing, and security research.
+This repository contains my **daily logs, write-ups, and learnings** from various Capture The Flag (CTF) platforms and cybersecurity challenges.
 
 ---
 
